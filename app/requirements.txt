@@ -1,0 +1,10 @@
+dagshub
+uvicorn
+mlflow
+mlflow_skinny
+nltk
+numpy
+pandas
+prometheus_client
+python-multipart
+fastapi
