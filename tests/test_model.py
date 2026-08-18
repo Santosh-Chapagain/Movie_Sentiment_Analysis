@@ -7,7 +7,9 @@ import pandas as pd
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import pickle
 import dagshub
+from dotenv import load_dotenv
 
+load_dotenv()
 class TestModelLoading(unittest.TestCase):
 
     @classmethod
@@ -19,6 +21,7 @@ class TestModelLoading(unittest.TestCase):
         if not dagshub_token:
             raise EnvironmentError("DAGSHUB_TOKEN environment variable is not set")
 
+        os.environ["DAGSHUB_TOKEN"] = dagshub_token
         os.environ["MLFLOW_TRACKING_USERNAME"] = dagshub_token
         os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
 
