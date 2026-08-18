@@ -311,48 +311,27 @@ def load_remote_model() -> Any:
 
 def load_model_artifact() -> Any:
     """
-    Load remote model if DagsHub is configured.
+    Load the local model by default.
 
-    If remote loading fails, fall back to
-    the local model.
+    Remote MLflow loading is enabled only when
+    USE_REMOTE_MODEL=true.
     """
 
-    remote_errors = []
+    use_remote = (
+        os.getenv("USE_REMOTE_MODEL", "false").lower()
+        == "true"
+    )
 
-    if DAGSHUB_TOKEN:
-
+    if use_remote and DAGSHUB_TOKEN:
         try:
-
             return load_remote_model()
 
         except Exception as exc:
-
-            remote_errors.append(
+            print(
                 f"Remote model loading failed: {exc}"
             )
 
-    try:
-
-        return load_local_model()
-
-    except Exception as exc:
-
-        local_error = (
-            f"Local model loading failed: {exc}"
-        )
-
-        if remote_errors:
-
-            raise RuntimeError(
-                "; ".join(
-                    remote_errors + [local_error]
-                )
-            ) from exc
-
-        raise RuntimeError(
-            local_error
-        ) from exc
-
+    return load_local_model()
 
 # ============================================================
 # Application bootstrap
@@ -522,9 +501,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Ensure the app is usable even when the ASGI lifespan context is not entered,
-# such as some lightweight test invocations or local runtime checks.
-bootstrap_artifacts()
+
 
 
 # ============================================================
@@ -567,8 +544,9 @@ def home(
     }
 
     response = templates.TemplateResponse(
-        "index.html",
-        context,
+        request=request,
+        name="index.html",
+        context=context,
     )
 
     REQUEST_LATENCY.labels(
