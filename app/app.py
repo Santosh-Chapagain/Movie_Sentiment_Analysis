@@ -7,7 +7,7 @@ import re
 import string
 import time
 import warnings
-
+from pydantic import BaseModel
 import dagshub
 import mlflow
 import numpy as np
