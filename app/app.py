@@ -7,62 +7,75 @@ import re
 import string
 import time
 import warnings
-from pydantic import BaseModel
-import dagshub
+
 import mlflow
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, Histogram, generate_latest
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    CollectorRegistry,
+    Counter,
+    Histogram,
+    generate_latest,
+)
 
 from src.data_task.data_preprocessing import preprocess_text
 
-warnings.simplefilter("ignore", UserWarning)
+
+# ============================================================
+# Configuration
+# ============================================================
+
 warnings.filterwarnings("ignore")
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
+
 MODELS_DIR = PROJECT_ROOT / "models"
 VECTORIZER_PATH = MODELS_DIR / "vectorizer.pkl"
 LOCAL_MODEL_PATH = MODELS_DIR / "model.pkl"
+
 TEMPLATES_DIR = BASE_DIR / "templates"
 
 MODEL_NAME = os.getenv("MODEL_NAME", "my_model")
+
 REPO_OWNER = "Santosh-Chapagain"
 REPO_NAME = "Movie_Sentiment_Analysis"
+
 TRACKING_URI = os.getenv(
     "MLFLOW_TRACKING_URI",
     f"https://dagshub.com/{REPO_OWNER}/{REPO_NAME}.mlflow",
 )
-DAGSHUB_TOKEN = os.getenv("DAGSHUB_TOKEN") 
+
+DAGSHUB_TOKEN = os.getenv("DAGSHUB_TOKEN")
 
 
-os.environ["MLFLOW_TRACKING_USERNAME"] = DAGSHUB_TOKEN
-os.environ["MLFLOW_TRACKING_PASSWORD"] = DAGSHUB_TOKEN
-
-# mlflow.set_tracking_uri(
-#     'https://dagshub.com/Santosh-Chapagain/Movie_Sentiment_Analysis.mlflow')
-# dagshub.init(repo_owner='Santosh-Chapagain',
-#              repo_name='Movie_Sentiment_Analysis', mlflow=True)
-
+# ============================================================
+# Prometheus metrics
+# ============================================================
 
 registry = CollectorRegistry()
+
 REQUEST_COUNT = Counter(
     "app_request_count",
     "Total number of requests to the app",
     ["method", "endpoint"],
     registry=registry,
 )
+
 REQUEST_LATENCY = Histogram(
     "app_request_latency_seconds",
     "Latency of requests in seconds",
     ["endpoint"],
     registry=registry,
 )
+
 PREDICTION_COUNT = Counter(
     "model_prediction_count",
     "Count of predictions for each class",
@@ -70,212 +83,529 @@ PREDICTION_COUNT = Counter(
     registry=registry,
 )
 
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-app = FastAPI(title="Movie Sentiment Analysis API", version="1.0.0")
+
+# ============================================================
+# FastAPI setup
+# ============================================================
+
+templates = Jinja2Templates(
+    directory=str(TEMPLATES_DIR)
+)
+
+
+# ============================================================
+# NLTK
+# ============================================================
 
 stop_words = set(stopwords.words("english"))
 lemmatizer = WordNetLemmatizer()
+
+
+# ============================================================
+# Global model state
+# ============================================================
 
 MODEL: Optional[Any] = None
 VECTORIZER: Optional[Any] = None
 STARTUP_ERROR: Optional[str] = None
 
 
+# ============================================================
+# Text preprocessing
+# ============================================================
+
 def remove_stop_words(text: str) -> str:
-    """Remove stop words from the text."""
-    words = [word for word in str(text).split() if word not in stop_words]
+    """Remove stop words from text."""
+    words = [
+        word
+        for word in str(text).split()
+        if word not in stop_words
+    ]
+
     return " ".join(words)
 
 
 def removing_numbers(text: str) -> str:
-    """Remove numbers from the text."""
-    return "".join(char for char in text if not char.isdigit())
+    """Remove numbers from text."""
+    return "".join(
+        char for char in text
+        if not char.isdigit()
+    )
 
 
 def lower_case(text: str) -> str:
-    """Convert text to lower case."""
-    return " ".join(word.lower() for word in text.split())
+    """Convert text to lowercase."""
+    return " ".join(
+        word.lower()
+        for word in text.split()
+    )
 
 
 def removing_punctuations(text: str) -> str:
-    """Remove punctuations from the text."""
-    text = re.sub(r"[%s]" % re.escape(string.punctuation), " ", text)
+    """Remove punctuation from text."""
+
+    text = re.sub(
+        r"[%s]" % re.escape(string.punctuation),
+        " ",
+        text,
+    )
+
     text = text.replace("؛", "")
-    text = re.sub(r"\s+", " ", text).strip()
+
+    text = re.sub(
+        r"\s+",
+        " ",
+        text,
+    ).strip()
+
     return text
 
 
 def removing_urls(text: str) -> str:
-    """Remove URLs from the text."""
-    return re.compile(r"https?://\S+|www\.\S+").sub("", text)
+    """Remove URLs from text."""
+
+    return re.compile(
+        r"https?://\S+|www\.\S+"
+    ).sub("", text)
 
 
 def lemmatization(text: str) -> str:
-    """Lemmatize the text."""
-    return " ".join(lemmatizer.lemmatize(word) for word in text.split())
+    """Lemmatize text."""
+
+    return " ".join(
+        lemmatizer.lemmatize(word)
+        for word in text.split()
+    )
 
 
 def normalize_text(text: str) -> str:
-    """Normalize text using the same preprocessing pipeline as the training code."""
+    """
+    Use the same preprocessing pipeline used during training.
+    """
+
     return preprocess_text(text)
 
 
+# ============================================================
+# MLflow configuration
+# ============================================================
+
 def configure_mlflow() -> None:
-    """Configure MLflow to use the DagsHub-backed registry when credentials are present."""
+    """Configure MLflow."""
+
     mlflow.set_tracking_uri(TRACKING_URI)
+
     if DAGSHUB_TOKEN:
-        os.environ["MLFLOW_TRACKING_USERNAME"] = DAGSHUB_TOKEN
+
+        os.environ["MLFLOW_TRACKING_USERNAME"] = REPO_OWNER
         os.environ["MLFLOW_TRACKING_PASSWORD"] = DAGSHUB_TOKEN
-        dagshub.init(repo_owner=REPO_OWNER, repo_name=REPO_NAME, mlflow=True)
 
 
-def get_latest_model_version(model_name: str) -> Optional[str]:
-    """Return the latest registered version from Production, then fallback to None stage."""
+# ============================================================
+# Model registry
+# ============================================================
+
+def get_latest_model_version(
+    model_name: str,
+) -> Optional[str]:
+
     client = mlflow.MlflowClient()
-    for stage in ("Production", "None"):
-        latest_versions = client.get_latest_versions(
-            model_name, stages=[stage])
-        if latest_versions:
-            return latest_versions[0].version
+
+    try:
+
+        # Old MLflow stage-based registry.
+        for stage in ("Production", "None"):
+
+            latest_versions = client.get_latest_versions(
+                model_name,
+                stages=[stage],
+            )
+
+            if latest_versions:
+
+                return latest_versions[0].version
+
+    except Exception as exc:
+
+        raise RuntimeError(
+            f"Unable to access MLflow model registry: {exc}"
+        ) from exc
+
     return None
 
 
-def load_vectorizer() -> Any:
-    """Load the persisted TF-IDF vectorizer."""
-    if not VECTORIZER_PATH.exists():
-        raise FileNotFoundError(
-            f"Vectorizer file not found: {VECTORIZER_PATH}")
+# ============================================================
+# Vectorizer
+# ============================================================
 
-    with open(VECTORIZER_PATH, "rb") as file:
+def load_vectorizer() -> Any:
+    """Load vectorizer from disk."""
+
+    if not VECTORIZER_PATH.exists():
+
+        raise FileNotFoundError(
+            f"Vectorizer file not found: "
+            f"{VECTORIZER_PATH}"
+        )
+
+    with open(
+        VECTORIZER_PATH,
+        "rb",
+    ) as file:
+
         return pickle.load(file)
 
+
+# ============================================================
+# Local model
+# ============================================================
 
 def load_local_model() -> Any:
-    """Load the locally serialized model if available."""
-    if not LOCAL_MODEL_PATH.exists():
-        raise FileNotFoundError(
-            f"Local model file not found: {LOCAL_MODEL_PATH}")
+    """Load locally saved model."""
 
-    with open(LOCAL_MODEL_PATH, "rb") as file:
+    if not LOCAL_MODEL_PATH.exists():
+
+        raise FileNotFoundError(
+            f"Local model file not found: "
+            f"{LOCAL_MODEL_PATH}"
+        )
+
+    with open(
+        LOCAL_MODEL_PATH,
+        "rb",
+    ) as file:
+
         return pickle.load(file)
 
 
+# ============================================================
+# Remote MLflow model
+# ============================================================
+
 def load_remote_model() -> Any:
-    """Load the latest model from the MLflow registry."""
-    model_version = get_latest_model_version(MODEL_NAME)
+    """Load model from MLflow registry."""
+
+    model_version = get_latest_model_version(
+        MODEL_NAME
+    )
+
     if not model_version:
+
         raise RuntimeError(
-            f"No registered model version found for {MODEL_NAME}")
+            f"No registered model version found "
+            f"for {MODEL_NAME}"
+        )
 
-    model_uri = f"models:/{MODEL_NAME}/{model_version}"
-    return mlflow.pyfunc.load_model(model_uri)
+    model_uri = (
+        f"models:/{MODEL_NAME}/{model_version}"
+    )
 
+    return mlflow.pyfunc.load_model(
+        model_uri
+    )
+
+
+# ============================================================
+# Model loading strategy
+# ============================================================
 
 def load_model_artifact() -> Any:
-    """Load a model, preferring the registry-backed model when possible."""
-    remote_errors: list[str] = []
+    """
+    Load remote model if DagsHub is configured.
+
+    If remote loading fails, fall back to
+    the local model.
+    """
+
+    remote_errors = []
 
     if DAGSHUB_TOKEN:
+
         try:
+
             return load_remote_model()
-        except Exception as exc:  # pragma: no cover - startup fallback path
-            remote_errors.append(str(exc))
+
+        except Exception as exc:
+
+            remote_errors.append(
+                f"Remote model loading failed: {exc}"
+            )
 
     try:
-        return load_local_model()
-    except Exception as exc:
-        if remote_errors:
-            raise RuntimeError("; ".join(remote_errors + [str(exc)])) from exc
-        raise
 
+        return load_local_model()
+
+    except Exception as exc:
+
+        local_error = (
+            f"Local model loading failed: {exc}"
+        )
+
+        if remote_errors:
+
+            raise RuntimeError(
+                "; ".join(
+                    remote_errors + [local_error]
+                )
+            ) from exc
+
+        raise RuntimeError(
+            local_error
+        ) from exc
+
+
+# ============================================================
+# Application bootstrap
+# ============================================================
 
 def bootstrap_artifacts() -> None:
-    """Load application artifacts during startup without crashing the server."""
-    global MODEL, VECTORIZER, STARTUP_ERROR
+    """
+    Load vectorizer and model.
+
+    Failure does not crash the application.
+    The error is stored in STARTUP_ERROR.
+    """
+
+    global MODEL
+    global VECTORIZER
+    global STARTUP_ERROR
+
     try:
+
         configure_mlflow()
+
         VECTORIZER = load_vectorizer()
+
         MODEL = load_model_artifact()
+
         STARTUP_ERROR = None
-    except Exception as exc:  # pragma: no cover - startup fallback path
+
+    except Exception as exc:
+
         MODEL = None
         VECTORIZER = None
+
         STARTUP_ERROR = str(exc)
 
 
-def build_feature_frame(text: str) -> pd.DataFrame:
-    """Transform input text into the feature frame expected by the trained model."""
+# ============================================================
+# Feature generation
+# ============================================================
+
+def build_feature_frame(
+    text: str,
+) -> pd.DataFrame:
+
     if VECTORIZER is None:
-        raise RuntimeError("Vectorizer is not loaded")
 
-    features = VECTORIZER.transform([text])
-    return pd.DataFrame(features.toarray(), columns=[str(i) for i in range(features.shape[1])])
+        raise RuntimeError(
+            "Vectorizer is not loaded"
+        )
+
+    features = VECTORIZER.transform(
+        [text]
+    )
+
+    return pd.DataFrame(
+        features.toarray(),
+        columns=[
+            str(i)
+            for i in range(
+                features.shape[1]
+            )
+        ],
+    )
 
 
-def format_prediction(prediction: Any) -> str:
-    """Convert the raw model output into a readable label."""
-    if isinstance(prediction, np.generic):
+# ============================================================
+# Prediction formatting
+# ============================================================
+
+def format_prediction(
+    prediction: Any,
+) -> str:
+
+    if isinstance(
+        prediction,
+        np.generic,
+    ):
+
         prediction = prediction.item()
 
-    if str(prediction) in {"1", "positive", "pos", "Positive"}:
+    prediction_string = str(
+        prediction
+    )
+
+    if prediction_string in {
+        "1",
+        "positive",
+        "pos",
+        "Positive",
+    }:
+
         return "Positive"
-    if str(prediction) in {"0", "negative", "neg", "Negative"}:
+
+    if prediction_string in {
+        "0",
+        "negative",
+        "neg",
+        "Negative",
+    }:
+
         return "Negative"
-    return str(prediction)
+
+    return prediction_string
 
 
-def predict_sentiment(text: str) -> tuple[Any, str, str]:
-    """Run text through preprocessing, vectorization, and the model."""
-    if MODEL is None or VECTORIZER is None:
-        raise RuntimeError(STARTUP_ERROR or "Model artifacts are not loaded")
+# ============================================================
+# Prediction
+# ============================================================
 
-    cleaned_text = normalize_text(text)
-    features_df = build_feature_frame(cleaned_text)
-    raw_prediction = MODEL.predict(features_df)[0]
-    prediction_label = format_prediction(raw_prediction)
-    return raw_prediction, prediction_label, cleaned_text
+def predict_sentiment(
+    text: str,
+) -> tuple[Any, str, str]:
 
+    if (
+        MODEL is None
+        or VECTORIZER is None
+    ):
+
+        raise RuntimeError(
+            STARTUP_ERROR
+            or "Model artifacts are not loaded"
+        )
+
+    cleaned_text = normalize_text(
+        text
+    )
+
+    features_df = build_feature_frame(
+        cleaned_text
+    )
+
+    raw_prediction = MODEL.predict(
+        features_df
+    )[0]
+
+    prediction_label = format_prediction(
+        raw_prediction
+    )
+
+    return (
+        raw_prediction,
+        prediction_label,
+        cleaned_text,
+    )
+
+
+# ============================================================
+# FastAPI lifespan
+# ============================================================
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(
+    application: FastAPI,
+):
+
     bootstrap_artifacts()
+
     yield
 
 
-app.router.lifespan_context = lifespan
+# ============================================================
+# FastAPI application
+# ============================================================
 
+app = FastAPI(
+    title="Movie Sentiment Analysis API",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+
+# ============================================================
+# Request model
+# ============================================================
 
 class PredictRequest(BaseModel):
     text: str
 
 
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    REQUEST_COUNT.labels(method="GET", endpoint="/").inc()
+# ============================================================
+# Home page
+# ============================================================
+
+@app.get(
+    "/",
+    response_class=HTMLResponse,
+)
+def home(
+    request: Request,
+):
+
+    REQUEST_COUNT.labels(
+        method="GET",
+        endpoint="/",
+    ).inc()
+
     start_time = time.perf_counter()
+
     context = {
         "request": request,
         "result": None,
         "raw_prediction": None,
         "input_text": "",
-        "model_ready": MODEL is not None and VECTORIZER is not None,
+        "model_ready": (
+            MODEL is not None
+            and VECTORIZER is not None
+        ),
         "startup_error": STARTUP_ERROR,
     }
-    response = templates.TemplateResponse("index.html", context)
+
+    response = templates.TemplateResponse(
+        "index.html",
+        context,
+    )
+
     REQUEST_LATENCY.labels(
-        endpoint="/").observe(time.perf_counter() - start_time)
+        endpoint="/"
+    ).observe(
+        time.perf_counter() - start_time
+    )
+
     return response
 
 
-@app.post("/predict", response_class=HTMLResponse)
-def predict(request: Request, text: str = Form(...)):
-    REQUEST_COUNT.labels(method="POST", endpoint="/predict").inc()
+# ============================================================
+# HTML prediction endpoint
+# ============================================================
+
+@app.post(
+    "/predict",
+    response_class=HTMLResponse,
+)
+def predict(
+    request: Request,
+    text: str = Form(...),
+):
+
+    REQUEST_COUNT.labels(
+        method="POST",
+        endpoint="/predict",
+    ).inc()
+
     start_time = time.perf_counter()
 
     try:
-        raw_prediction, prediction_label, cleaned_text = predict_sentiment(
-            text)
-        PREDICTION_COUNT.labels(prediction=prediction_label).inc()
+
+        raw_prediction, prediction_label, cleaned_text = (
+            predict_sentiment(text)
+        )
+
+        PREDICTION_COUNT.labels(
+            prediction=prediction_label
+        ).inc()
+
         context = {
             "request": request,
             "result": prediction_label,
@@ -285,7 +615,16 @@ def predict(request: Request, text: str = Form(...)):
             "model_ready": True,
             "startup_error": None,
         }
+
+        response = templates.TemplateResponse(
+            "index.html",
+            context,
+        )
+
+        return response
+
     except Exception as exc:
+
         context = {
             "request": request,
             "result": None,
@@ -295,51 +634,114 @@ def predict(request: Request, text: str = Form(...)):
             "model_ready": False,
             "startup_error": str(exc),
         }
+
+        return templates.TemplateResponse(
+            "index.html",
+            context,
+            status_code=503,
+        )
+
+    finally:
+
         REQUEST_LATENCY.labels(
-            endpoint="/predict").observe(time.perf_counter() - start_time)
-        return templates.TemplateResponse("index.html", context, status_code=503)
+            endpoint="/predict"
+        ).observe(
+            time.perf_counter() - start_time
+        )
 
-    REQUEST_LATENCY.labels(
-        endpoint="/predict").observe(time.perf_counter() - start_time)
-    return templates.TemplateResponse("index.html", context)
 
+# ============================================================
+# JSON prediction endpoint
+# ============================================================
 
 @app.post("/api/predict")
-def api_predict(payload: PredictRequest):
-    REQUEST_COUNT.labels(method="POST", endpoint="/api/predict").inc()
+def api_predict(
+    payload: PredictRequest,
+):
+
+    REQUEST_COUNT.labels(
+        method="POST",
+        endpoint="/api/predict",
+    ).inc()
+
     start_time = time.perf_counter()
 
-    text = payload.text.strip()
-    if not text:
-        raise HTTPException(status_code=422, detail="'text' is required")
-
     try:
-        raw_prediction, prediction_label, cleaned_text = predict_sentiment(
-            text)
-        PREDICTION_COUNT.labels(prediction=prediction_label).inc()
+
+        text = payload.text.strip()
+
+        if not text:
+
+            raise HTTPException(
+                status_code=422,
+                detail="'text' is required",
+            )
+
+        (
+            raw_prediction,
+            prediction_label,
+            cleaned_text,
+        ) = predict_sentiment(text)
+
+        PREDICTION_COUNT.labels(
+            prediction=prediction_label
+        ).inc()
+
         return JSONResponse(
             {
                 "prediction": prediction_label,
-                "raw_prediction": str(raw_prediction),
+                "raw_prediction": str(
+                    raw_prediction
+                ),
                 "cleaned_text": cleaned_text,
             }
         )
-    finally:
-        REQUEST_LATENCY.labels(
-            endpoint="/api/predict").observe(time.perf_counter() - start_time)
 
+    finally:
+
+        REQUEST_LATENCY.labels(
+            endpoint="/api/predict"
+        ).observe(
+            time.perf_counter() - start_time
+        )
+
+
+# ============================================================
+# Health endpoint
+# ============================================================
 
 @app.get("/health")
 def health():
+
+    model_ready = (
+        MODEL is not None
+        and VECTORIZER is not None
+    )
+
     return {
-        "status": "ok" if MODEL is not None and VECTORIZER is not None else "degraded",
+        "status": (
+            "ok"
+            if model_ready
+            else "degraded"
+        ),
         "model_ready": MODEL is not None,
-        "vectorizer_ready": VECTORIZER is not None,
+        "vectorizer_ready": (
+            VECTORIZER is not None
+        ),
         "startup_error": STARTUP_ERROR,
     }
 
 
+# ============================================================
+# Prometheus metrics
+# ============================================================
+
 @app.get("/metrics")
 def metrics():
-    """Expose only custom Prometheus metrics."""
-    return Response(content=generate_latest(registry), media_type=CONTENT_TYPE_LATEST)
+
+    return Response(
+        content=generate_latest(
+            registry
+        ),
+        media_type=CONTENT_TYPE_LATEST,
+    )
