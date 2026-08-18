@@ -8,3 +8,4 @@ pandas
 prometheus_client
 python-multipart
 fastapi
+dotenv
