@@ -13,6 +13,30 @@ load_dotenv()   # Loads variables from .env into environment variables
 pd.set_option('future.no_silent_downcasting', True)
 
 
+def get_aws_credentials():
+    """Return AWS credentials from standard env names or legacy project names."""
+    access_key = (
+        os.getenv("AWS_ACCESS_KEY_ID")
+        or os.getenv("Access_Key")
+        or os.getenv("AWS_ACCESS_KEY")
+    )
+    secret_key = (
+        os.getenv("AWS_SECRET_ACCESS_KEY")
+        or os.getenv("Secret_Access_Key")
+        or os.getenv("AWS_SECRET_KEY")
+    )
+
+    if not access_key or not secret_key:
+        raise ValueError(
+            "AWS credentials are missing. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY "
+            "in the environment or GitHub Actions secrets."
+        )
+
+    os.environ["AWS_ACCESS_KEY_ID"] = access_key
+    os.environ["AWS_SECRET_ACCESS_KEY"] = secret_key
+    return access_key, secret_key
+
+
 def load_params(params_path: str) -> dict:
     """Load parameters from a YAML file."""
     try:
@@ -82,12 +106,11 @@ def main():
     try:
         params = load_params(params_path='params.yaml')
         test_size = params['data_ingestion']['test_size']
-        
-        
-        accesskey= os.getenv("Access_Key")
-        secretkey= os.getenv("Secret_Access_Key")
+
+        accesskey, secretkey = get_aws_credentials()
         s3 = s3_connection.s3_operations(
-            "sentiment-data-proj", accesskey, secretkey)  # It is use to access data from s3 bucket directly
+            # It is use to access data from s3 bucket directly
+            "sentiment-data-proj", accesskey, secretkey)
         df = s3.fetch_file_from_s3("IMDB.csv")
 
         final_df = preprocess_data(df)
