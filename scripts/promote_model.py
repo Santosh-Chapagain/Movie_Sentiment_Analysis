@@ -17,7 +17,7 @@ def promote_model():
 
     dagshub_url = "https://dagshub.com"
     repo_owner = "Santosh-Chapagain"
-    repo_name = "Sentiment_Analysis_Project"
+    repo_name = "Movie_Sentiment_Analysis"
 
     # Set up MLflow tracking URI
     mlflow.set_tracking_uri(f'{dagshub_url}/{repo_owner}/{repo_name}.mlflow')
