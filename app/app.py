@@ -32,13 +32,23 @@ LOCAL_MODEL_PATH = MODELS_DIR / "model.pkl"
 TEMPLATES_DIR = BASE_DIR / "templates"
 
 MODEL_NAME = os.getenv("MODEL_NAME", "my_model")
-REPO_OWNER = os.getenv("DAGSHUB_REPO_OWNER", "Santosh-Chapagain")
-REPO_NAME = os.getenv("DAGSHUB_REPO_NAME", "Movie_Sentiment_Analysis")
+REPO_OWNER = "Santosh-Chapagain"
+REPO_NAME = "Movie_Sentiment_Analysis"
 TRACKING_URI = os.getenv(
     "MLFLOW_TRACKING_URI",
     f"https://dagshub.com/{REPO_OWNER}/{REPO_NAME}.mlflow",
 )
 DAGSHUB_TOKEN = os.getenv("DAGSHUB_TOKEN") 
+
+
+os.environ["MLFLOW_TRACKING_USERNAME"] = DAGSHUB_TOKEN
+os.environ["MLFLOW_TRACKING_PASSWORD"] = DAGSHUB_TOKEN
+
+# mlflow.set_tracking_uri(
+#     'https://dagshub.com/Santosh-Chapagain/Movie_Sentiment_Analysis.mlflow')
+# dagshub.init(repo_owner='Santosh-Chapagain',
+#              repo_name='Movie_Sentiment_Analysis', mlflow=True)
+
 
 registry = CollectorRegistry()
 REQUEST_COUNT = Counter(
