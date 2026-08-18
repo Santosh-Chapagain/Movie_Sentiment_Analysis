@@ -16,7 +16,7 @@ def promote_model():
     os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
 
     dagshub_url = "https://dagshub.com"
-    repo_owner = "santoshchapagain"
+    repo_owner = "Santosh-Chapagain"
     repo_name = "Sentiment_Analysis_Project"
 
     # Set up MLflow tracking URI
