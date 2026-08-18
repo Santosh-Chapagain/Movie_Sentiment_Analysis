@@ -522,6 +522,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Ensure the app is usable even when the ASGI lifespan context is not entered,
+# such as some lightweight test invocations or local runtime checks.
+bootstrap_artifacts()
+
 
 # ============================================================
 # Request model
