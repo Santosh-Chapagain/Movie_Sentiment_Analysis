@@ -22,7 +22,7 @@ class APPTEST(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
 
         self.assertIn(
-            "<title>Movie Sentiment Analysis</title>",
+            "<title>Sentiment Analysis</title>",
             response.text,
         )
 
