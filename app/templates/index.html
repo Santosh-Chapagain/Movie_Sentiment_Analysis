@@ -5,193 +5,201 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sentiment Analysis</title>
     <style>
-        :root {
-            --bg: #020617;
-            --panel: rgba(15, 23, 42, 0.88);
-            --panel-border: rgba(148, 163, 184, 0.2);
-            --text: #e5e7eb;
-            --muted: #94a3b8;
-            --accent: #38bdf8;
-            --accent-2: #22c55e;
-            --error: #fb923c;
-        }
+    * {
+        box-sizing: border-box;
+    }
 
-        * { box-sizing: border-box; }
+    body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        color: #222;
+        background: #ffffff;
+    }
 
-        body {
-            margin: 0;
-            min-height: 100vh;
-            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            color: var(--text);
-            background:
-                radial-gradient(circle at 10% 10%, rgba(56, 189, 248, 0.18), transparent 28%),
-                radial-gradient(circle at 90% 20%, rgba(34, 197, 94, 0.14), transparent 24%),
-                linear-gradient(145deg, #020617 0%, #0f172a 55%, #111827 100%);
+    .shell {
+        width: 90%;
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 30px 0;
+    }
+
+    .hero {
+        margin-bottom: 25px;
+    }
+
+    .eyebrow {
+        color: #555;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 12px;
+        font-weight: bold;
+        margin-bottom: 8px;
+    }
+
+    h1 {
+        margin: 0;
+        font-size: 26px;
+        font-weight: 600;
+        color: #222;
+    }
+
+    .subtitle {
+        max-width: 700px;
+        margin: 8px 0 0;
+        color: #666;
+        line-height: 1.5;
+        font-size: 13px;
+    }
+
+    .grid {
+        display: grid;
+        grid-template-columns: 1.4fr 0.8fr;
+        gap: 20px;
+    }
+
+    .card {
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 20px;
+    }
+
+    label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    textarea {
+        width: 100%;
+        min-height: 180px;
+        resize: vertical;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background: #fff;
+        color: #222;
+        padding: 10px;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        outline: none;
+    }
+
+    textarea:focus {
+        border-color: #888;
+    }
+
+    .actions {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-top: 12px;
+        flex-wrap: wrap;
+    }
+
+    button {
+        border: 1px solid #333;
+        border-radius: 4px;
+        padding: 8px 14px;
+        color: #fff;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        background: #333;
+    }
+
+    button:hover {
+        background: #222;
+    }
+
+    .hint {
+        color: #777;
+        font-size: 12px;
+    }
+
+    .status {
+        display: grid;
+        gap: 14px;
+        align-content: start;
+    }
+
+    .pill {
+        display: inline-block;
+        width: fit-content;
+        padding: 5px 9px;
+        border-radius: 3px;
+        font-size: 12px;
+        font-weight: 600;
+        background: #eee;
+        color: #555;
+    }
+
+    .pill.ready {
+        color: #176b2c;
+        background: #e8f5e9;
+    }
+
+    .pill.error {
+        color: #9a4d00;
+        background: #fff3e0;
+    }
+
+    .result {
+        font-size: 20px;
+        font-weight: 600;
+        color: #222;
+        margin-top: 4px;
+    }
+
+    .raw {
+        color: #666;
+        font-size: 12px;
+        line-height: 1.5;
+        margin-top: 5px;
+    }
+
+    .error-box {
+        padding: 10px 12px;
+        border: 1px solid #e5b7b7;
+        border-radius: 4px;
+        background: #fff5f5;
+        color: #9b3333;
+        font-size: 12px;
+        line-height: 1.5;
+    }
+
+    .footer {
+        margin-top: 18px;
+        color: #777;
+        font-size: 12px;
+    }
+
+    .footer a {
+        color: #333 !important;
+    }
+
+    @media (max-width: 700px) {
+        .grid {
+            grid-template-columns: 1fr;
         }
 
         .shell {
-            width: min(1100px, calc(100% - 32px));
-            margin: 0 auto;
-            padding: 48px 0 64px;
-        }
-
-        .hero {
-            margin-bottom: 24px;
-        }
-
-        .eyebrow {
-            color: var(--accent);
-            text-transform: uppercase;
-            letter-spacing: 0.22em;
-            font-size: 0.78rem;
-            font-weight: 700;
-            margin-bottom: 12px;
+            width: 94%;
+            padding: 20px 0;
         }
 
         h1 {
-            margin: 0;
-            font-size: clamp(2.1rem, 5vw, 4rem);
-            line-height: 1;
+            font-size: 22px;
         }
-
-        .subtitle {
-            max-width: 70ch;
-            margin: 14px 0 0;
-            color: var(--muted);
-            line-height: 1.7;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: 1.2fr 0.8fr;
-            gap: 20px;
-        }
-
-        .card {
-            background: var(--panel);
-            border: 1px solid var(--panel-border);
-            border-radius: 24px;
-            padding: 24px;
-            box-shadow: 0 30px 80px rgba(2, 6, 23, 0.45);
-            backdrop-filter: blur(12px);
-        }
-
-        label {
-            display: block;
-            margin-bottom: 10px;
-            font-weight: 700;
-        }
-
-        textarea {
-            width: 100%;
-            min-height: 220px;
-            resize: vertical;
-            border-radius: 16px;
-            border: 1px solid rgba(148, 163, 184, 0.22);
-            background: rgba(15, 23, 42, 0.76);
-            color: var(--text);
-            padding: 16px;
-            font: inherit;
-            outline: none;
-        }
-
-        textarea:focus {
-            border-color: rgba(56, 189, 248, 0.85);
-            box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.12);
-        }
-
-        .actions {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-            margin-top: 16px;
-            flex-wrap: wrap;
-        }
-
-        button {
-            border: 0;
-            border-radius: 999px;
-            padding: 12px 18px;
-            color: white;
-            font-weight: 800;
-            cursor: pointer;
-            background: linear-gradient(135deg, var(--accent), #0ea5e9);
-        }
-
-        .hint {
-            color: var(--muted);
-            font-size: 0.94rem;
-        }
-
-        .status {
-            display: grid;
-            gap: 14px;
-            align-content: start;
-        }
-
-        .pill {
-            display: inline-flex;
-            width: fit-content;
-            padding: 8px 12px;
-            border-radius: 999px;
-            font-size: 0.9rem;
-            font-weight: 700;
-            background: rgba(148, 163, 184, 0.12);
-        }
-
-        .pill.ready {
-            color: #86efac;
-            background: rgba(34, 197, 94, 0.14);
-        }
-
-        .pill.error {
-            color: #fdba74;
-            background: rgba(249, 115, 22, 0.14);
-        }
-
-        .result {
-            font-size: 1.4rem;
-            font-weight: 900;
-            color: var(--accent-2);
-        }
-
-        .raw {
-            color: var(--muted);
-            font-size: 0.95rem;
-            line-height: 1.6;
-        }
-
-        .error-box {
-            padding: 14px 16px;
-            border-radius: 14px;
-            border: 1px solid rgba(251, 146, 60, 0.3);
-            background: rgba(251, 146, 60, 0.12);
-            color: #fdba74;
-            line-height: 1.65;
-        }
-
-        .footer {
-            margin-top: 18px;
-            color: var(--muted);
-            font-size: 0.92rem;
-        }
-
-        @media (max-width: 880px) {
-            .grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+    }
+</style>
 </head>
 <body>
     <main class="shell">
         <section class="hero">
             <div class="eyebrow">Movie Sentiment Analysis</div>
-            <h1>FastAPI sentiment scoring for movie reviews.</h1>
-            <p class="subtitle">
-                Submit a review, run it through the same preprocessing pipeline used during training,
-                and get a prediction from the registered model. The service also exposes custom Prometheus metrics.
-            </p>
+            
         </section>
 
         <section class="grid">
@@ -201,26 +209,27 @@
                     <textarea id="text" name="text" placeholder="Type a movie review here...">{{ input_text or "" }}</textarea>
                     <div class="actions">
                         <button type="submit">Predict sentiment</button>
-                        <span class="hint">Uses your Dagshub MLflow token when it is available in the environment.</span>
+                       
+                        
                     </div>
                 </form>
             </div>
 
             <aside class="card status">
-                {% if model_ready %}
+                <!-- {% if model_ready %}
                     <div class="pill ready">Model ready</div>
                 {% else %}
                     <div class="pill error">Model not ready</div>
-                {% endif %}
+                {% endif %} -->
 
                 {% if result %}
                     <div>
                         <div class="hint">Prediction</div>
                         <div class="result">{{ result }}</div>
-                        {% if raw_prediction is not none %}
+                        <!-- {% if raw_prediction is not none %}
                             <div class="raw">Raw output: {{ raw_prediction }}</div>
-                        {% endif %}
-                    </div>
+                        {% endif %} -->
+                    <!-- </div>
                 {% endif %}
 
                 {% if cleaned_text %}
@@ -228,7 +237,7 @@
                         <div class="hint">Cleaned text</div>
                         <div class="raw">{{ cleaned_text }}</div>
                     </div>
-                {% endif %}
+                {% endif %} -->
 
                 {% if startup_error %}
                     <div class="error-box">{{ startup_error }}</div>
