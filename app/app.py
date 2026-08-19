@@ -337,6 +337,7 @@ def load_model_artifact() -> Any:
 # Application bootstrap
 # ============================================================
 
+
 def bootstrap_artifacts() -> None:
     """
     Load vectorizer and model.
@@ -502,8 +503,6 @@ app = FastAPI(
 )
 
 
-
-
 # ============================================================
 # Request model
 # ============================================================
@@ -599,8 +598,9 @@ def predict(
         }
 
         response = templates.TemplateResponse(
-            "index.html",
-            context,
+            request=request,
+            name="index.html",
+            context=context,
         )
 
         return response
@@ -618,8 +618,9 @@ def predict(
         }
 
         return templates.TemplateResponse(
-            "index.html",
-            context,
+            request=request,
+            name="index.html",
+            context=context,
             status_code=503,
         )
 
