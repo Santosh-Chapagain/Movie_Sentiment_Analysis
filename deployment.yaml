@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fastapi-app
+  labels:
+    app: fastapi-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: fastapi-app
+  template:
+    metadata:
+      labels:
+        app: fastapi-app
+    spec:
+      containers:
+      - name: fastapi-app
+        image: 020866158197.dkr.ecr.us-east-1.amazonaws.com/sentiment_analysis_proj:latest
+
+        ports:
+        - containerPort: 5000
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "1"
+        env:
+        - name: DAGSHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: dagshub-secret
+              key: DAGSHUB_TOKEN
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fastapi-app-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: fastapi-app
+  ports:
+    - name: http
+      protocol: TCP
+      port: 5000
+      targetPort: 5000

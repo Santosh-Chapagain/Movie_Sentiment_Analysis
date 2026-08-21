@@ -79,3 +79,72 @@
 
 38. Execute CICD pipeline till the stage where we build and push image to ECR.
 
+----------------------------------------------------------------------------------
+*********Setup required before moving to EKS deployment*********
+----------------------------------------------------------------------------------
+* Run the following in PowerShell to see the AWS CLI path being used: Get-Command aws
+If the path points to your Anaconda environment (e.g., C:\Users\Personal\anaconda3\...), it’s a conflicting installation.
+
+* Uninstall Python-Based AWS CLI(Remove the conflicting AWS CLI from your Python environment): pip uninstall awscli
+* Verify it's uninstalled: aws --version
+* Update Environment Variables:
+> Make sure the .msi AWS CLI path is in your system PATH (usually installed at C:\Program Files\Amazon\AWSCLIV2\aws.exe).
+> Add it to your PATH if missing: Open Control Panel > System > Advanced System Settings > Environment Variables. Under "System Variables," find Path, and add the AWS CLI path: C:\Program Files\Amazon\AWSCLIV2\
+> Test AWS CLI Again: aws --version
+----------------------------------------------------------------------------------
+
+* Download kubectl: Invoke-WebRequest -Uri "https://dl.k8s.io/release/v1.28.2/bin/windows/amd64/kubectl.exe" -OutFile "kubectl.exe"
+* Locate the Download: Get-Location
+* Move kubectl.exe to a directory in your system PATH, such as C:\Windows\System32: Move-Item -Path .\kubectl.exe -Destination "C:\Windows\System32"
+* Test if kubectl is properly installed: kubectl version --client
+
+
+* Download eksctl: Invoke-WebRequest -Uri "https://github.com/weaveworks/eksctl/releases/download/v0.158.0/eksctl_Windows_amd64.zip" -OutFile "eksctl.zip"
+* Extract eksctl: Expand-Archive -Path .\eksctl.zip -DestinationPath .
+* Move the extracted eksctl.exe file to C:\Windows\System32 or any folder in your system PATH: Move-Item -Path .\eksctl.exe -Destination "C:\Windows\System32\eksctl.exe"
+----------------------------------------------------------------------------------
+* Verify AWS CLI: aws --version
+* Verify kubectl: kubectl version --client
+* Verify eksctl: eksctl version
+----------------------------------------------------------------------------------
+
+39. Create an EKS cluster:
+    eksctl create cluster --name flask-app-cluster --region us-east-1 --nodegroup-name flask-app-nodes --node-type t3.small --nodes 1 --nodes-min 1 --nodes-max 1 --managed
+
+40. Update kubectl Config(Once the cluster is created, eksctl will automatically update your kubectl config file. However, you can verify and set it manually using:)
+aws eks --region us-east-1 update-kubeconfig --name flask-app-cluster (This ensures your kubectl is pointing to the correct cluster.)
+
+41. Check EKS Cluster Configuration Ensure you can access your EKS cluster by running
+    aws eks list-clusters
+
+42. Delete cluster(optional):
+    eksctl delete cluster --name flask-app-cluster --region us-east-1
+
+    Also, verify cluster deletion:
+    eksctl get cluster --region us-east-1
+
+43. Verify the cluster status:
+    aws eks --region us-east-1 describe-cluster --name flask-app-cluster --query "cluster.status"
+
+
+44. Check cluster connectivity:
+kubectl get nodes
+
+45. Check the namespaces:
+kubectl get namespaces
+
+46. Verify the deployment:
+kubectl get pods
+kubectl get svc
+
+47. Deploy the app on EKS via CICD pipeline 
+  >> edit ci.yaml, deployment.yaml, dockerfile
+  >> Also edit the security group for nodes and edit inbound rule for 5000 port
+
+
+48. Once the LoadBalancer service is up, get the external IP:
+kubectl get svc flask-app-service
+
+49. Try externa-ip:5000 directly on url or on terminal : curl http://external-ip:5000
+curl http://a6bf6255d5f61470c9782b8955c98271-1409247973.us-east-1.elb.amazonaws.com:5000
+
