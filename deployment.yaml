@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: fastapi-app
-        image: 020866158197.dkr.ecr.us-east-1.amazonaws.com/sentiment_analysis_proj:latest
+        image: 423351912836.dkr.ecr.us-east-1.amazonaws.com/sentiment_analysis_proj:latest
 
         ports:
         - containerPort: 5000
