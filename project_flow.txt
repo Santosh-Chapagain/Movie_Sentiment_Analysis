@@ -148,3 +148,91 @@ kubectl get svc flask-app-service
 49. Try externa-ip:5000 directly on url or on terminal : curl http://external-ip:5000
 curl http://a6bf6255d5f61470c9782b8955c98271-1409247973.us-east-1.elb.amazonaws.com:5000
 
+
+
+>>>>>>>>>> Prometheus Server Setup <<<<<<<<<<
+
+50. Launch an Ubuntu EC2 Instance for Prometheus: t3.medium,  20GB of disk space (general-purpose SSD), Security Group: Allow inbound access on ports: 9090 for Prometheus Web UI, 22 for SSH access
+
+51. SSH into the EC2 Instance(optional or connect directly to ec2 server alternatively):
+ssh -i your-key.pem ubuntu@your-ec2-public-ip
+
+52. Update packages: sudo apt update && sudo apt upgrade -y
+
+53. Download Prometheus:
+wget https://github.com/prometheus/prometheus/releases/download/v2.46.0/prometheus-2.46.0.linux-amd64.tar.gz
+tar -xvzf prometheus-2.46.0.linux-amd64.tar.gz
+mv prometheus-2.46.0.linux-amd64 prometheus
+
+54. Move files to standard paths:
+sudo mv prometheus /etc/prometheus
+sudo mv /etc/prometheus/prometheus /usr/local/bin/
+
+55. Create Prometheus Configuration: 
+>> Open the file for editing: sudo nano /etc/prometheus/prometheus.yml
+>> Edit the File:
+
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "flask-app"
+    static_configs:
+      - targets: ["a6bf6255d5f61470c9782b8955c98271-1409247973.us-east-1.elb.amazonaws.com:5000"]  # Replace with your app's External IP
+
+
+
+>> Save the File: ctrl+o -> enter -> ctrl+x
+>> Verify the Changes: cat /etc/prometheus/prometheus.yml
+
+56. Locate the Prometheus Binary(Run the following command to find where the prometheus executable is installed):
+which prometheus
+This should return the full path to the prometheus binary, such as /usr/local/bin/Prometheus
+
+57. Run Prometheus with the config file:
+/usr/local/bin/prometheus --config.file=/etc/prometheus/prometheus.yml
+
+
+
+>>>>>>>>>> Grafana Server Setup <<<<<<<<<<
+
+58. Launch an Ubuntu EC2 Instance for Grafana: t3.medium,  20GB of disk space (general-purpose SSD), Security Group: Allow inbound access on ports: 3000 for Grafana Web UI, 22 for SSH access
+
+59. SSH into the EC2 Instance(optional or connect directly to ec2 server alternatively):
+ssh -i your-key.pem ubuntu@your-ec2-public-ip
+
+60. Update and upgrade system packages:
+sudo apt update && sudo apt upgrade -y
+
+61. Download Grafana: wget https://dl.grafana.com/oss/release/grafana_10.1.5_amd64.deb
+(this is a stable version for now; adjust the link if necessary.)
+
+62. Install Grafana: sudo apt install ./grafana_10.1.5_amd64.deb -y
+
+63. Start the Grafana service: sudo systemctl start grafana-server
+
+64. Enable Grafana to start on boot: sudo systemctl enable grafana-server
+
+65. Verify the service is running: sudo systemctl status grafana-server
+
+66. Open Grafana web UI: http://<ec2-public-ip>:3000 (username/pass - admin)
+
+67. Add Prometheus as a Data Source: http://54.81.71.206/:9090
+    click - Save and Test | Get started with building dashboards.
+
+
+
+----------------------------------------------------------------------------------
+
+AWS Resource Cleanup:
+
+* Delete deployment - kubectl delete deployment flask-app
+* Delete service - kubectl delete service flask-app-service
+* Delete env var - kubectl delete secret capstone-secret
+* Delete EKS Cluster - eksctl delete cluster --name flask-app-cluster --region us-east-1
+* Verify Cluster Deletion - eksctl get cluster --region us-east-1
+* Delete artifacts of ECR and S3 (optional - delete ECR and S3)
+* Validate if Cloud Formation stacks are deleted.
+* Confirm service termination on AWS support chat.
+
+
